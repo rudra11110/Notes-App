@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from 'react';
-import api from '../services/api';
+import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { useToast } from '../contexts/ToastContext';
 import NoteCard from '../components/NoteCard';
@@ -14,26 +14,33 @@ export default function Home() {
   const [editing, setEditing] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(true);
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, user } = useAuth();
   const { success, error } = useToast();
 
   const fetchNotes = useCallback(async () => {
-    if (!isAuthenticated) {
+    if (!isAuthenticated || !user) {
       setLoading(false);
       return;
     }
-    
+
     try {
       setLoading(true);
-      const res = await api.get('/notes');
-      setNotes(res.data);
+      const { data, error: fetchError } = await supabase
+        .from('notes')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false });
+
+      if (fetchError) throw fetchError;
+
+      setNotes(data || []);
     } catch (err) {
       console.error('Failed to fetch notes:', err);
       error('Failed to load notes');
     } finally {
       setLoading(false);
     }
-  }, [isAuthenticated, error]);
+  }, [isAuthenticated, user, error]);
 
   useEffect(() => {
     fetchNotes();
@@ -42,19 +49,42 @@ export default function Home() {
   const handleSave = async (note) => {
     try {
       if (note.id) {
-        await api.put(`/notes/${note.id}`, note);
-        setNotes((n) => n.map((x) => (x.id === note.id ? note : x)));
+        const { data, error: updateError } = await supabase
+          .from('notes')
+          .update({
+            title: note.title,
+            content: note.content,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', note.id)
+          .select()
+          .maybeSingle();
+
+        if (updateError) throw updateError;
+
+        setNotes((n) => n.map((x) => (x.id === note.id ? data : x)));
         success('Note updated successfully');
       } else {
-        const res = await api.post('/notes', note);
-        setNotes((n) => [res.data, ...n]);
+        const { data, error: insertError } = await supabase
+          .from('notes')
+          .insert({
+            title: note.title,
+            content: note.content,
+            user_id: user.id,
+          })
+          .select()
+          .maybeSingle();
+
+        if (insertError) throw insertError;
+
+        setNotes((n) => [data, ...n]);
         success('Note created successfully');
       }
       setOpen(false);
       setEditing(null);
     } catch (err) {
       console.error('Failed to save note:', err);
-      error(err.response?.data?.error || 'Failed to save note');
+      error(err.message || 'Failed to save note');
     }
   };
 
@@ -64,7 +94,13 @@ export default function Home() {
     }
 
     try {
-      await api.delete(`/notes/${id}`);
+      const { error: deleteError } = await supabase
+        .from('notes')
+        .delete()
+        .eq('id', id);
+
+      if (deleteError) throw deleteError;
+
       setNotes((notes) => notes.filter((x) => x.id !== id));
       success('Note deleted successfully');
     } catch (err) {

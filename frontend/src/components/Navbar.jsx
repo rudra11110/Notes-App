@@ -13,8 +13,8 @@ export default function Navbar() {
     localStorage.setItem('dark', dark ? '1' : '0');
   }, [dark]);
 
-  const handleLogout = () => {
-    logout();
+  const handleLogout = async () => {
+    await logout();
     navigate('/login');
   };
 
