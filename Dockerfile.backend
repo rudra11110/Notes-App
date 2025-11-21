@@ -1,7 +1,21 @@
-FROM node:18-alpine
+# Stage 1 - install dependencies
+FROM node:18-alpine AS deps
 WORKDIR /app
 COPY backend/package*.json ./
-RUN npm install --production
-COPY backend .
-EXPOSE 5000
-CMD ["node","index.js"]
+RUN npm ci --production
+
+# Stage 2 - final image
+FROM node:18-alpine
+WORKDIR /app
+
+# create non-root user
+RUN addgroup -S appgroup && adduser -S appuser -G appgroup
+
+COPY --from=deps /app/node_modules ./node_modules
+COPY backend/ ./
+
+ENV NODE_ENV=production
+EXPOSE 3000
+
+USER appuser
+CMD ["node", "index.js"]

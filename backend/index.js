@@ -23,25 +23,43 @@ app.use(express.urlencoded({ extended: false }));
 app.use(morgan(process.env.LOG_FORMAT || 'combined'));
 
 // CORS configuration
-app.use(cors({
-  origin: CORS_ORIGIN,
-  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-  credentials: true
-}));
+app.use(
+  cors({
+    origin: CORS_ORIGIN,
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    credentials: true,
+  })
+);
 
 // Health check
 app.get('/health', (req, res) => {
   res.status(200).json({ status: 'ok', uptime: process.uptime() });
 });
 
-// Try to mount API routes if present
+// Try to mount API routes if present. Support several export styles:
+// - module.exports = router (Express Router)
+// - module.exports = (app) => { app.get(...); }
+// - export default router (ESM compiled to CommonJS has .default)
 try {
-  // If your routes export an Express router (adjust path if different).
-  // If your routes are in backend/routes/index.js set module.exports = router in that file.
-  const apiRouter = require('./routes');
-  app.use('/api', apiRouter);
+  const apiModule = require('./routes');
+  if (!apiModule) {
+    console.warn('Routes module returned falsy value; skipping mount.');
+  } else if (typeof apiModule === 'function') {
+    const maybeRouter = apiModule(app);
+    if (maybeRouter && typeof maybeRouter.use === 'function') {
+      app.use('/api', maybeRouter);
+    }
+  } else if (apiModule.default && typeof apiModule.default === 'function') {
+    const maybeRouter = apiModule.default(app);
+    if (maybeRouter && typeof maybeRouter.use === 'function') {
+      app.use('/api', maybeRouter);
+    } else {
+      app.use('/api', apiModule.default);
+    }
+  } else {
+    app.use('/api', apiModule);
+  }
 } catch (err) {
-  // If routes folder is missing, keep server running; log error for visibility
   console.warn('No API routes mounted (./routes not found or failed to load):', err && err.message ? err.message : err);
 }
 
@@ -54,7 +72,7 @@ app.use((req, res) => {
 app.use((err, req, res, next) => {
   console.error(err && err.stack ? err.stack : err);
   res.status(err && err.status ? err.status : 500).json({
-    error: (process.env.NODE_ENV === 'production') ? 'Internal Server Error' : (err && err.message) || 'Unknown error'
+    error: process.env.NODE_ENV === 'production' ? 'Internal Server Error' : (err && err.message) || 'Unknown error',
   });
 });
 
@@ -65,7 +83,7 @@ const server = app.listen(PORT, HOST, () => {
 // Graceful shutdown
 function shutdown(signal) {
   console.log(`Received ${signal}. Closing server...`);
-  server.close(err => {
+  server.close((err) => {
     if (err) {
       console.error('Error closing server:', err);
       process.exit(1);
@@ -80,11 +98,9 @@ process.on('SIGTERM', () => shutdown('SIGTERM'));
 
 process.on('uncaughtException', (err) => {
   console.error('uncaughtException', err);
-  // Optionally notify monitoring service here
   process.exit(1);
 });
 
 process.on('unhandledRejection', (reason, promise) => {
   console.error('unhandledRejection', reason);
-  // Optionally record or alert here
 });
