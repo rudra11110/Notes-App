@@ -1,11 +1,7 @@
 [build]
 base = "frontend"
-command = "npm run build"
+command = "npm install --include=dev && npm run build"
 publish = "dist"
-
-[build.environment]
-VITE_SUPABASE_URL = ""
-VITE_SUPABASE_ANON_KEY = ""
 
 [[redirects]]
 from = "/*"
