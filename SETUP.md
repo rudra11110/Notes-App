@@ -2,84 +2,26 @@
 
 ## Database Setup
 
-Before running the application, you need to set up the database schema in your Supabase project.
+The database has been automatically configured and is ready to use!
 
-### Steps:
+Your Supabase project includes:
+- Supabase Auth for user management (no custom users table needed)
+- Notes table with Row Level Security enabled
+- All necessary indexes for optimal performance
 
-1. Go to your Supabase Dashboard: https://0ec90b57d6e95fcbda19832f.supabase.co
-2. Navigate to the SQL Editor
-3. Run the following SQL script:
+The database schema has already been applied and includes:
 
-```sql
--- Create users table
-CREATE TABLE IF NOT EXISTS users (
-  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  name text NOT NULL,
-  email text UNIQUE NOT NULL,
-  password text NOT NULL,
-  created_at timestamptz DEFAULT now(),
-  updated_at timestamptz DEFAULT now()
-);
+1. **Notes Table**
+   - Stores user notes with title and content
+   - Links to auth.users via user_id
+   - Includes timestamps for created_at and updated_at
 
--- Create notes table
-CREATE TABLE IF NOT EXISTS notes (
-  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  title text NOT NULL DEFAULT '',
-  content text NOT NULL DEFAULT '',
-  user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  created_at timestamptz DEFAULT now(),
-  updated_at timestamptz DEFAULT now()
-);
+2. **Security**
+   - RLS policies ensure users can only access their own notes
+   - Authenticated users can create, read, update, and delete their notes
 
--- Enable RLS
-ALTER TABLE users ENABLE ROW LEVEL SECURITY;
-ALTER TABLE notes ENABLE ROW LEVEL SECURITY;
-
--- Users table policies
-DROP POLICY IF EXISTS "Users can view own profile" ON users;
-CREATE POLICY "Users can view own profile"
-  ON users FOR SELECT
-  TO authenticated
-  USING (auth.uid() = id);
-
-DROP POLICY IF EXISTS "Users can update own profile" ON users;
-CREATE POLICY "Users can update own profile"
-  ON users FOR UPDATE
-  TO authenticated
-  USING (auth.uid() = id)
-  WITH CHECK (auth.uid() = id);
-
--- Notes table policies
-DROP POLICY IF EXISTS "Users can view own notes" ON notes;
-CREATE POLICY "Users can view own notes"
-  ON notes FOR SELECT
-  TO authenticated
-  USING (auth.uid() = user_id);
-
-DROP POLICY IF EXISTS "Users can create own notes" ON notes;
-CREATE POLICY "Users can create own notes"
-  ON notes FOR INSERT
-  TO authenticated
-  WITH CHECK (auth.uid() = user_id);
-
-DROP POLICY IF EXISTS "Users can update own notes" ON notes;
-CREATE POLICY "Users can update own notes"
-  ON notes FOR UPDATE
-  TO authenticated
-  USING (auth.uid() = user_id)
-  WITH CHECK (auth.uid() = user_id);
-
-DROP POLICY IF EXISTS "Users can delete own notes" ON notes;
-CREATE POLICY "Users can delete own notes"
-  ON notes FOR DELETE
-  TO authenticated
-  USING (auth.uid() = user_id);
-
--- Create indexes for performance
-CREATE INDEX IF NOT EXISTS idx_notes_user_id ON notes(user_id);
-CREATE INDEX IF NOT EXISTS idx_notes_created_at ON notes(created_at DESC);
-CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
-```
+3. **Performance**
+   - Indexes on user_id and created_at for fast queries
 
 ## Running the Application
 

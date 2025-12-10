@@ -44,10 +44,10 @@ export default function NoteCard({ note, onEdit, onDelete }) {
           <p className="text-sm text-slate-600 dark:text-slate-300 line-clamp-4 mb-3 leading-relaxed">
             {note.content || 'No content'}
           </p>
-          {note.createdAt && (
+          {note.created_at && (
             <div className="flex items-center gap-1 text-xs text-slate-500 dark:text-slate-400 mb-3">
               <Calendar className="w-3 h-3" />
-              <span>{formatDate(note.createdAt)}</span>
+              <span>{formatDate(note.created_at)}</span>
             </div>
           )}
         </div>
